@@ -57,11 +57,12 @@
  *  TIMER 1 — 1 ms countdown  (ISR at vector 0x1B, interrupt 3)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-volatile uint32_t g_ms_countdown = 0;   /* decremented each 1 ms by ISR      */
+volatile uint16_t g_sec_countdown = 0;   /* decremented each 1 s by ISR      */
 uint16_t g_prev_button_state = 0x0000;  /* last active-state tracking of BTN1-9 */
 
 void Timer1_ISR(void) __interrupt(3)
 {
+    static uint16_t ms_ticks = 0;
     uint8_t sfrs_tmp = SFRS;
     SFRS = 0;
 
@@ -69,8 +70,13 @@ void Timer1_ISR(void) __interrupt(3)
     TL1 = TL1TMP;
     clr_TCON_TF1;
 
-    if (g_ms_countdown > 0)
-        g_ms_countdown--;
+    ms_ticks++;
+    if (ms_ticks >= 1000U)
+    {
+        ms_ticks = 0;
+        if (g_sec_countdown > 0)
+            g_sec_countdown--;
+    }
 
     if (sfrs_tmp) { ENABLE_SFR_PAGE1; }
 }
@@ -232,16 +238,13 @@ static void TM_ShowDigits(uint8_t d0, uint8_t d1, uint8_t d2)
 
 /* ── High-level display helpers ─────────────────────────────────────────── */
 
-/*  Show remaining seconds as a 3-digit decimal (000 – 999)
- *  Uses ceiling division so the display reads the full second at start
- *  and transitions as each second expires, not partway through.            */
-static void TM_ShowSeconds(uint32_t secs)
+/*  Show remaining minutes as a 3-digit decimal (000 – 999) using 8-bit math */
+static void TM_ShowMinutes(uint8_t mins)
 {
-    if (secs > 999UL) secs = 999UL;                     /* clamp for safety */
     TM_ShowDigits(
-        SEG_TABLE[secs / 100UL],
-        SEG_TABLE[(secs / 10UL) % 10UL],
-        SEG_TABLE[secs % 10UL]
+        SEG_TABLE[mins / 100U],
+        SEG_TABLE[(mins / 10U) % 10U],
+        SEG_TABLE[mins % 10U]
     );
 }
 
@@ -263,6 +266,21 @@ static void TM_ShowZeros(void)
     TM_ShowDigits(SEG_TABLE[0], SEG_TABLE[0], SEG_TABLE[0]);
 }
 
+static uint16_t Read_All_Buttons(void)
+{
+    uint16_t state = 0;
+    if (READ_BTN(BTN1_PIN)) state |= 0x0001U;
+    if (READ_BTN(BTN2_PIN)) state |= 0x0002U;
+    if (READ_BTN(BTN3_PIN)) state |= 0x0004U;
+    if (READ_BTN(BTN4_PIN)) state |= 0x0008U;
+    if (READ_BTN(BTN5_PIN)) state |= 0x0010U;
+    if (READ_BTN(BTN6_PIN)) state |= 0x0020U;
+    if (READ_BTN(BTN7_PIN)) state |= 0x0040U;
+    if (READ_BTN(BTN8_PIN)) state |= 0x0080U;
+    if (READ_BTN(BTN9_PIN)) state |= 0x0100U;
+    return state;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  *  DIRECT BUTTON SCANNER (Edge-Triggered, Non-blocking)
  *  Returns 1–9 for a confirmed transition from released to pressed.
@@ -271,46 +289,21 @@ static void TM_ShowZeros(void)
 
 static uint8_t Scan_Buttons(void)
 {
-    uint16_t current_state = 0;
+    uint16_t current_state = Read_All_Buttons();
     uint8_t pressed_btn = 0xFFU;
     uint8_t i;
-
-    /* Read all 9 pins into a single bitmask (1 = pressed, 0 = released) */
-    current_state |= (READ_BTN(BTN1_PIN) ? 1U : 0) << 0;
-    current_state |= (READ_BTN(BTN2_PIN) ? 1U : 0) << 1;
-    current_state |= (READ_BTN(BTN3_PIN) ? 1U : 0) << 2;
-    current_state |= (READ_BTN(BTN4_PIN) ? 1U : 0) << 3;
-    current_state |= (READ_BTN(BTN5_PIN) ? 1U : 0) << 4;
-    current_state |= (READ_BTN(BTN6_PIN) ? 1U : 0) << 5;
-    current_state |= (READ_BTN(BTN7_PIN) ? 1U : 0) << 6;
-    current_state |= (READ_BTN(BTN8_PIN) ? 1U : 0) << 7;
-    current_state |= (READ_BTN(BTN9_PIN) ? 1U : 0) << 8;
+    uint16_t mask = 0x0001U;
 
     /* Detect rising edge of active state: was released (0) -> is pressed (1) */
     for (i = 0; i < 9; i++)
     {
-        uint16_t mask = 1U << i;
         if (!(g_prev_button_state & mask) && (current_state & mask))
         {
             /* Debounce: wait 10 ms and re-read */
             Delay_ms_soft(10);
             
-            /* Re-read the specific pin */
-            uint8_t pin_pressed = 0;
-            switch (i + 1)
-            {
-                case 1: pin_pressed = READ_BTN(BTN1_PIN); break;
-                case 2: pin_pressed = READ_BTN(BTN2_PIN); break;
-                case 3: pin_pressed = READ_BTN(BTN3_PIN); break;
-                case 4: pin_pressed = READ_BTN(BTN4_PIN); break;
-                case 5: pin_pressed = READ_BTN(BTN5_PIN); break;
-                case 6: pin_pressed = READ_BTN(BTN6_PIN); break;
-                case 7: pin_pressed = READ_BTN(BTN7_PIN); break;
-                case 8: pin_pressed = READ_BTN(BTN8_PIN); break;
-                case 9: pin_pressed = READ_BTN(BTN9_PIN); break;
-            }
-            
-            if (pin_pressed)
+            /* Re-read using the bit-mask to check specific pin state */
+            if (Read_All_Buttons() & mask)
             {
                 pressed_btn = i + 1;
                 /* Lock the state as pressed so we don't repeat-trigger */
@@ -318,6 +311,7 @@ static uint8_t Scan_Buttons(void)
                 break;
             }
         }
+        mask <<= 1;
     }
 
     /* Release tracking: clear bits in g_prev_button_state if pins are released (0 in current_state) */
@@ -367,25 +361,17 @@ void main(void)
     BTN9_PIN  = 1;
 
     /* Read initial button state to prevent false triggers on startup */
-    g_prev_button_state = 0;
-    g_prev_button_state |= (READ_BTN(BTN1_PIN) ? 1U : 0) << 0;
-    g_prev_button_state |= (READ_BTN(BTN2_PIN) ? 1U : 0) << 1;
-    g_prev_button_state |= (READ_BTN(BTN3_PIN) ? 1U : 0) << 2;
-    g_prev_button_state |= (READ_BTN(BTN4_PIN) ? 1U : 0) << 3;
-    g_prev_button_state |= (READ_BTN(BTN5_PIN) ? 1U : 0) << 4;
-    g_prev_button_state |= (READ_BTN(BTN6_PIN) ? 1U : 0) << 5;
-    g_prev_button_state |= (READ_BTN(BTN7_PIN) ? 1U : 0) << 6;
-    g_prev_button_state |= (READ_BTN(BTN8_PIN) ? 1U : 0) << 7;
-    g_prev_button_state |= (READ_BTN(BTN9_PIN) ? 1U : 0) << 8;
+    g_prev_button_state = Read_All_Buttons();
 
     /* If BTN9 is held down at boot, enter diagnostic mode */
     if (READ_BTN(BTN9_PIN))
     {
         while (1)
         {
-            uint8_t d0 = (READ_BTN(BTN1_PIN) ? 0x01 : 0) | (READ_BTN(BTN2_PIN) ? 0x02 : 0) | (READ_BTN(BTN3_PIN) ? 0x04 : 0);
-            uint8_t d1 = (READ_BTN(BTN4_PIN) ? 0x01 : 0) | (READ_BTN(BTN5_PIN) ? 0x02 : 0) | (READ_BTN(BTN6_PIN) ? 0x04 : 0);
-            uint8_t d2 = (READ_BTN(BTN7_PIN) ? 0x01 : 0) | (READ_BTN(BTN8_PIN) ? 0x02 : 0) | (READ_BTN(BTN9_PIN) ? 0x04 : 0);
+            uint16_t state = Read_All_Buttons();
+            uint8_t d0 = (state & 0x0001 ? 0x01 : 0) | (state & 0x0002 ? 0x02 : 0) | (state & 0x0004 ? 0x04 : 0);
+            uint8_t d1 = (state & 0x0008 ? 0x01 : 0) | (state & 0x0010 ? 0x02 : 0) | (state & 0x0020 ? 0x04 : 0);
+            uint8_t d2 = (state & 0x0040 ? 0x01 : 0) | (state & 0x0080 ? 0x02 : 0) | (state & 0x0100 ? 0x04 : 0);
             TM_ShowDigits(d0, d1, d2);
             Delay_ms_soft(50);
         }
@@ -417,7 +403,7 @@ void main(void)
         if (key == 9U)
         {
             RELAY_LED = 0;
-            g_ms_countdown = 0;
+            g_sec_countdown = 0;
             TM_ShowOFF();
             continue;
         }
@@ -425,34 +411,34 @@ void main(void)
         /* Valid Timer Keys: 1 to 8 mapped to Minutes */
         if (key >= 1U && key <= 8U)
         {
-            uint32_t ms_on;
-            uint32_t prev_min = 0xFFFFFFFFUL; /* Tracks minute changes for display */
+            uint16_t secs_on;
+            uint16_t prev_min = 0xFFFFU; /* Tracks minute changes for display */
 
             /* ── Mapping Table 1->8 for 5, 10, 15, 20, 25, 30, 40, 60 MINUTES ── */
             switch(key) {
-                case 1: ms_on = 5UL  * 60000UL; break;
-                case 2: ms_on = 10UL * 60000UL; break;
-                case 3: ms_on = 15UL * 60000UL; break;
-                case 4: ms_on = 20UL * 60000UL; break;
-                case 5: ms_on = 25UL * 60000UL; break;
-                case 6: ms_on = 30UL * 60000UL; break;
-                case 7: ms_on = 40UL * 60000UL; break;
-                case 8: ms_on = 60UL * 60000UL; break;
-                default: ms_on = 0; break;
+                case 1: secs_on = 5U  * 60U; break;
+                case 2: secs_on = 10U * 60U; break;
+                case 3: secs_on = 15U * 60U; break;
+                case 4: secs_on = 20U * 60U; break;
+                case 5: secs_on = 25U * 60U; break;
+                case 6: secs_on = 30U * 60U; break;
+                case 7: secs_on = 40U * 60U; break;
+                case 8: secs_on = 60U * 60U; break;
+                default: secs_on = 0; break;
             }
 
             /* ── Load countdown (IRQ-safe) ── */
             EA = 0;
-            g_ms_countdown = ms_on;
+            g_sec_countdown = secs_on;
             EA = 1;
 
             RELAY_LED = 1;          /* Activate Relay */
 
             /* ── Countdown loop ── */
-            while (g_ms_countdown > 0)
+            while (g_sec_countdown > 0)
             {
-                uint32_t ms_now;
-                uint32_t min_now;
+                uint16_t secs_now;
+                uint16_t min_now;
                 uint8_t stop_key;
 
                 /* CHECK FOR EMERGENCY STOP DURING COUNTDOWN */
@@ -460,26 +446,24 @@ void main(void)
                 if (stop_key == 9U)
                 {
                     EA = 0;
-                    g_ms_countdown = 0;
+                    g_sec_countdown = 0;
                     EA = 1;
                     break;
                 }
 
                 EA = 0;
-                ms_now = g_ms_countdown;
+                secs_now = g_sec_countdown;
                 EA = 1;
 
                 /* Calculate Minutes Remaining (Ceiling)
-                   Example: 300,000ms (5 mins) / 60,000 = 5. Display shows 005.
-                   At 239,000ms (3.98 mins), (239000+59999)/60000 = 4. Display shows 004. */
-                min_now = (ms_now + 59999UL) / 60000UL;
+                   Example: 300s (5 mins) / 60 = 5. Display shows 005.
+                   At 239s (3.98 mins), (239+59)/60 = 4. Display shows 004. */
+                min_now = (secs_now + 59U) / 60U;
 
                 if (min_now != prev_min)
                 {
                     prev_min = min_now;
-                    /* We reuse the TM_ShowSeconds function logic but pass minutes
-                       since it just handles formatting 3-digit integers. */
-                    TM_ShowSeconds(min_now);
+                    TM_ShowMinutes((uint8_t)min_now);
                 }
             }
 
