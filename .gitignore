@@ -1,0 +1,58 @@
+#==============================================================================
+# MS51 Timer Module - Git Ignore File
+# Supports Keil uVision, IAR Embedded Workbench, and SDCC / Eclipse
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# 1. Compiler Build Outputs & Intermediate Files (Do NOT Track)
+#------------------------------------------------------------------------------
+*.hex
+*.bin
+*.elf
+*.map
+*.obj
+*.lst
+*.o
+*.d
+*.rel
+*.sym
+*.asm
+*.rst
+*.mem
+*.lk
+*.cdb
+*.dep
+*.crf
+*.lnp
+*.build_log.htm
+*.pbi
+*.pbd
+*.out
+
+#------------------------------------------------------------------------------
+# 2. Keil uVision Local Configuration Files (Do NOT Track)
+#------------------------------------------------------------------------------
+*.uvopt
+*.uvoptx
+*.uvgui.*
+*.uvguix.*
+listings/
+objects/
+
+#------------------------------------------------------------------------------
+# 3. IAR Embedded Workbench Local Configuration Files (Do NOT Track)
+#------------------------------------------------------------------------------
+*.dnx
+*.wsdt
+*.dbgdt
+*.custom_argvars
+settings/
+Debug/
+Release/
+
+#------------------------------------------------------------------------------
+# 4. Eclipse / SDCC / General OS Local Configuration Files (Do NOT Track)
+#------------------------------------------------------------------------------
+.settings/
+.DS_Store
+Thumbs.db
