@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Project_temp</name>
+	<name>Timer_v1_0</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -42,7 +42,7 @@
 		<link>
 			<name>User/main.c</name>
 			<type>1</type>
-			<location>C:/Users/CHANDRU/Downloads/MS51_BSP-master/MS51_BSP-master/MS51FB9AE_MS51XB9AE_MS51XB9BE/SampleCode/Template/Project_temp/main.c</location>
+			<location>C:/Users/CHANDRU/Downloads/MS51_BSP-master/MS51_BSP-master/MS51FB9AE_MS51XB9AE_MS51XB9BE/SampleCode/Template/Timer_v1.0/main.c</location>
 		</link>
 	</linkedResources>
 	<filteredResources>
