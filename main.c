@@ -27,7 +27,9 @@
  *  PIN DEFINITIONS
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-#define RELAY_LED   P05                /* Output: relay / LED                 */
+#define NO_RELAY    P15                /* Output: Normally Open relay         */
+#define POWER_ON    P30                /* Output: Power On LED                */
+#define SET_TIMER   P06                /*Blink twice to set timer             */
 
 /* Direct Buttons Mappings */
 #define BTN1_PIN    P01                /* 5 min                               */
@@ -45,7 +47,7 @@
  *   0 : Active-Low (button connects pin to GND when pressed, e.g. using internal pull-up)
  *   1 : Active-High (button connects pin to VCC when pressed, e.g. using external pull-down)
  */
-#define BUTTON_ACTIVE_STATE  1
+#define BUTTON_ACTIVE_STATE  0
 
 #define READ_BTN(pin)        (BUTTON_ACTIVE_STATE ? ((pin) == 1) : ((pin) == 0))
 
@@ -59,10 +61,10 @@
 
 volatile uint16_t g_sec_countdown = 0;   /* decremented each 1 s by ISR      */
 uint16_t g_prev_button_state = 0x0000;  /* last active-state tracking of BTN1-9 */
+static uint16_t ms_ticks = 0;
 
 void Timer1_ISR(void) __interrupt(3)
 {
-    static uint16_t ms_ticks = 0;
     uint8_t sfrs_tmp = SFRS;
     SFRS = 0;
 
@@ -328,9 +330,17 @@ void main(void)
 
     /* ── GPIO Configuration ─────────────────────────────────────────────── */
 
-    /* P0.5  RELAY_LED — push-pull output                                     */
-    P0M1 &= ~0x20U;
-    P0M2 |=  0x20U;
+    /* P0.6  SET_TIMER — push-pull output                                     */
+    P0M1 &= ~0x40U;
+    P0M2 |=  0x40U;
+
+    /* P3.0  POWER_ON — push-pull output                                      */
+    P3M1 &= ~0x01U;
+    P3M2 |=  0x01U;
+
+    /* P1.5  NO_RELAY — push-pull output                                      */
+    P1M1 &= ~0x20U;
+    P1M2 |=  0x20U;
 
     /* P0.0, P0.1, P0.3, P0.4  BTN4, BTN1, BTN2, BTN3 — quasi-bidirectional (mask = 0x1B) */
     P0M1 &= ~0x1BU;
@@ -347,7 +357,9 @@ void main(void)
     P1M2 &= ~0x18U;
 
     /* ── Initial pin states ─────────────────────────────────────────────── */
-    RELAY_LED = 0;            /* relay / LED OFF at boot                      */
+    POWER_ON  = 1;            /* Power On LED ON                              */
+    SET_TIMER = 0;            /* Set Timer LED OFF at boot                    */
+    NO_RELAY  = 0;            /* NO relay OFF at boot                         */
     TM_CLK    = 1;            /* bus idle: both lines HIGH                    */
     TM_DIO    = 1;
     BTN1_PIN  = 1;            /* Enable input / pull-ups on all buttons       */
@@ -402,7 +414,8 @@ void main(void)
         /* Emergency Stop Logic: If Key 9 is pressed while IDLE or DONE */
         if (key == 9U)
         {
-            RELAY_LED = 0;
+            SET_TIMER = 0;
+            NO_RELAY  = 0;
             g_sec_countdown = 0;
             TM_ShowOFF();
             continue;
@@ -416,23 +429,33 @@ void main(void)
 
             /* ── Mapping Table 1->8 for 5, 10, 15, 20, 25, 30, 40, 60 MINUTES ── */
             switch(key) {
-                case 1: secs_on = 5U  * 60U; break;
-                case 2: secs_on = 10U * 60U; break;
-                case 3: secs_on = 15U * 60U; break;
-                case 4: secs_on = 20U * 60U; break;
-                case 5: secs_on = 25U * 60U; break;
-                case 6: secs_on = 30U * 60U; break;
-                case 7: secs_on = 40U * 60U; break;
-                case 8: secs_on = 60U * 60U; break;
+                case 1: secs_on = 5U  * 60U; TM_ShowMinutes(5); break;
+                case 2: secs_on = 10U * 60U; TM_ShowMinutes(10); break;
+                case 3: secs_on = 15U * 60U; TM_ShowMinutes(15); break;
+                case 4: secs_on = 20U * 60U; TM_ShowMinutes(20); break;
+                case 5: secs_on = 25U * 60U; TM_ShowMinutes(25); break;
+                case 6: secs_on = 30U * 60U; TM_ShowMinutes(30); break;
+                case 7: secs_on = 40U * 60U; TM_ShowMinutes(40); break;
+                case 8: secs_on = 60U * 60U; TM_ShowMinutes(60); break;
                 default: secs_on = 0; break;
             }
+
+            /* Blink SET_TIMER twice (500ms ON, 500ms OFF) */
+            SET_TIMER = 1;
+            Delay_ms_soft(500);
+            SET_TIMER = 0;
+            Delay_ms_soft(500);
+            SET_TIMER = 1;
+            Delay_ms_soft(500);
+            SET_TIMER = 0;
+            Delay_ms_soft(500);
 
             /* ── Load countdown (IRQ-safe) ── */
             EA = 0;
             g_sec_countdown = secs_on;
             EA = 1;
 
-            RELAY_LED = 1;          /* Activate Relay */
+            NO_RELAY  = 1;          /* Activate NO Relay */
 
             /* ── Countdown loop ── */
             while (g_sec_countdown > 0)
@@ -467,7 +490,8 @@ void main(void)
                 }
             }
 
-            RELAY_LED = 0;          /* Deactivate Relay */
+            NO_RELAY  = 0;          /* Deactivate NO Relay */
+            SET_TIMER = 0;
             TM_ShowOFF();
         }
     }
