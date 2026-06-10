@@ -7,7 +7,7 @@
 
   <Targets>
     <Target>
-      <TargetName>Project_temp</TargetName>
+      <TargetName>Timer_v1_0</TargetName>
       <ToolsetNumber>0x0</ToolsetNumber>
       <ToolsetName>MCS-51</ToolsetName>
       <uAC6>0</uAC6>
@@ -46,7 +46,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\Output\</OutputDirectory>
-          <OutputName>Project_temp</OutputName>
+          <OutputName>Timer_v1_0</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>

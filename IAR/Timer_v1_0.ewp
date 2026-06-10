@@ -752,7 +752,7 @@
                 </option>
                 <option>
                     <name>OutputFile</name>
-                    <state>Project_temp.d51</state>
+                    <state>Timer_v1_0.d51</state>
                 </option>
                 <option>
                     <name>OutputFormat</name>
@@ -946,7 +946,7 @@
                 </option>
                 <option>
                     <name>ExtraOutputFile</name>
-                    <state>Project_temp.a51</state>
+                    <state>Timer_v1_0.a51</state>
                 </option>
                 <option>
                     <name>ExtraOutputFormat</name>
